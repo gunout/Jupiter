@@ -9,7 +9,6 @@ warnings.filterwarnings('ignore')
 from datetime import datetime
 import base64
 from io import BytesIO
-import hashlib
 
 # Configuration de la page
 st.set_page_config(
@@ -546,8 +545,7 @@ class JupiterDataAnalyzer:
         
         self.events = events
 
-# Fonctions de visualisation avec des IDs uniques
-@st.cache_data
+# Fonctions de visualisation - sans décorateur @st.cache_data
 def create_plotly_visualizations(df, analyzer, chart_id):
     """Crée des visualisations Plotly interactives avec ID unique"""
     
@@ -626,16 +624,19 @@ def create_plotly_visualizations(df, analyzer, chart_id):
     )
     
     # Projections futures
+    hist_mask = df['Earth_Year'] <= 2020
+    pred_mask = df['Earth_Year'] >= 2020
+    
     fig_main.add_trace(
-        go.Scatter(x=df['Earth_Year'][df['Earth_Year'] <= 2020], 
-                  y=df['Base_Value'][df['Earth_Year'] <= 2020],
+        go.Scatter(x=df['Earth_Year'][hist_mask], 
+                  y=df['Base_Value'][hist_mask],
                   mode='lines', name='Historique',
                   line=dict(color=analyzer.config['color'], width=2)),
         row=3, col=2
     )
     fig_main.add_trace(
-        go.Scatter(x=df['Earth_Year'][df['Earth_Year'] >= 2020], 
-                  y=df['Future_Prediction'][df['Earth_Year'] >= 2020],
+        go.Scatter(x=df['Earth_Year'][pred_mask], 
+                  y=df['Future_Prediction'][pred_mask],
                   mode='lines', name='Projections',
                   line=dict(color='#00FFFF', width=2, dash='dash')),
         row=3, col=2
@@ -666,7 +667,6 @@ def create_plotly_visualizations(df, analyzer, chart_id):
     
     return fig_main
 
-@st.cache_data
 def create_jupiter_atmosphere_visualization(df, analyzer, chart_id):
     """Crée une visualisation de l'atmosphère de Jupiter avec ID unique"""
     
@@ -707,7 +707,6 @@ def create_jupiter_atmosphere_visualization(df, analyzer, chart_id):
     
     return fig_atmo
 
-@st.cache_data
 def create_moon_orbits_visualization(chart_id):
     """Crée une visualisation des orbites des lunes galiléennes avec ID unique"""
     
@@ -762,7 +761,6 @@ def create_moon_orbits_visualization(chart_id):
     
     return fig_moons
 
-@st.cache_data
 def create_mission_timeline(events, chart_id):
     """Crée une timeline des missions joviennes avec ID unique"""
     if not events:
@@ -814,7 +812,6 @@ def create_mission_timeline(events, chart_id):
     
     return fig_timeline
 
-@st.cache_data
 def create_gtr_evolution_chart(df, chart_id):
     """Crée un graphique d'évolution de la Grande Tache Rouge avec ID unique"""
     
@@ -830,6 +827,7 @@ def create_gtr_evolution_chart(df, chart_id):
     ))
     
     fig_gtr.update_layout(
+        title="📈 Évolution de la Grande Tache Rouge",
         template='plotly_dark',
         xaxis_title="Année Terrestre",
         yaxis_title="Diamètre (km)",
@@ -838,7 +836,6 @@ def create_gtr_evolution_chart(df, chart_id):
     
     return fig_gtr
 
-@st.cache_data
 def create_moon_influence_chart(df, chart_id):
     """Crée un graphique d'influence des lunes avec ID unique"""
     
@@ -852,6 +849,7 @@ def create_moon_influence_chart(df, chart_id):
     ))
     
     fig_moon_influence.update_layout(
+        title="📊 Influence gravitationnelle des lunes",
         template='plotly_dark',
         xaxis_title="Année Terrestre",
         yaxis_title="Influence relative",
@@ -859,6 +857,39 @@ def create_moon_influence_chart(df, chart_id):
     )
     
     return fig_moon_influence
+
+def create_pie_chart_missions(df_events, chart_id):
+    """Crée un diagramme circulaire des types de missions"""
+    mission_counts = df_events['type'].value_counts()
+    fig_pie = go.Figure(data=[go.Pie(
+        labels=mission_counts.index,
+        values=mission_counts.values,
+        hole=.3,
+        marker_colors=['#FFD700', '#B8A86D', '#1E90FF', '#32CD32', '#FFA07A']
+    )])
+    fig_pie.update_layout(template='plotly_dark', height=300, title="Types de missions")
+    return fig_pie
+
+def create_distribution_chart(df, analyzer, chart_id):
+    """Crée un graphique de distribution"""
+    fig_dist = make_subplots(rows=2, cols=1, 
+                             subplot_titles=('Distribution', 'Box Plot'))
+    
+    fig_dist.add_trace(
+        go.Histogram(x=df['Base_Value'], nbinsx=20,
+                    marker_color=analyzer.config['color']),
+        row=1, col=1
+    )
+    
+    fig_dist.add_trace(
+        go.Box(y=df['Base_Value'], name='Box Plot',
+              marker_color=analyzer.config['color'],
+              boxmean=True),
+        row=2, col=1
+    )
+    
+    fig_dist.update_layout(template='plotly_dark', height=500, title="Distribution des données")
+    return fig_dist
 
 def get_storm_class(intensity):
     """Retourne la classe CSS pour l'intensité des tempêtes"""
@@ -913,8 +944,6 @@ def main():
         
         if st.button("♃ Générer l'analyse", use_container_width=True, key="generate_button"):
             st.session_state['generate'] = True
-            # Clear cache when generating new data
-            st.cache_data.clear()
         
         st.markdown("---")
         st.markdown("### 👑 Faits royaux")
@@ -934,21 +963,15 @@ def main():
     analyzer.start_year = start_year
     analyzer.end_year = end_year
     
-    # Génération des données avec cache
-    @st.cache_data
-    def load_data(analyzer, start_year, end_year, selected_type):
-        analyzer.start_year = start_year
-        analyzer.end_year = end_year
-        return analyzer.generate_jupiter_data()
-    
+    # Génération des données - sans cache pour éviter les problèmes de hash
     if 'generate' in st.session_state and st.session_state['generate']:
         with st.spinner("♃ Génération des données joviennes en cours..."):
-            df = load_data(analyzer, start_year, end_year, selected_type)
+            df = analyzer.generate_jupiter_data()
             st.session_state['df'] = df
             st.session_state['generate'] = False
     elif 'df' not in st.session_state:
         with st.spinner("♃ Chargement des données joviennes..."):
-            df = load_data(analyzer, start_year, end_year, selected_type)
+            df = analyzer.generate_jupiter_data()
             st.session_state['df'] = df
     else:
         df = st.session_state['df']
@@ -1052,7 +1075,7 @@ def main():
         
         with col1:
             st.markdown("### Structure atmosphérique")
-            fig_atmo = create_jupiter_atmosphere_visualization(df, analyzer, f"atmo_{selected_type}")
+            fig_atmo = create_jupiter_atmosphere_visualization(df, analyzer, "atmo_detail")
             st.plotly_chart(fig_atmo, use_container_width=True, key="plot_atmo_detail")
         
         with col2:
@@ -1164,14 +1187,7 @@ def main():
             
             with col1:
                 st.markdown("### Types de missions")
-                mission_counts = missions_df['type'].value_counts()
-                fig_pie = go.Figure(data=[go.Pie(
-                    labels=mission_counts.index,
-                    values=mission_counts.values,
-                    hole=.3,
-                    marker_colors=['#FFD700', '#B8A86D', '#1E90FF', '#32CD32', '#FFA07A']
-                )])
-                fig_pie.update_layout(template='plotly_dark', height=300)
+                fig_pie = create_pie_chart_missions(missions_df, "pie_missions")
                 st.plotly_chart(fig_pie, use_container_width=True, key="plot_pie_missions")
             
             with col2:
@@ -1212,28 +1228,14 @@ def main():
         
         with col1:
             st.markdown("### Résumé statistique")
-            stats_df = df[['Base_Value', 'Jupiter_Index', 'Storm_Intensity', 
-                          'Magnetic_Activity', 'Observation_Quality']].describe()
+            stats_cols = ['Base_Value', 'Jupiter_Index', 'Storm_Intensity', 
+                         'Magnetic_Activity', 'Observation_Quality']
+            available_cols = [col for col in stats_cols if col in df.columns]
+            stats_df = df[available_cols].describe()
             st.dataframe(stats_df.style.format("{:.2f}"), use_container_width=True)
         
         with col2:
-            fig_dist = make_subplots(rows=2, cols=1, 
-                                     subplot_titles=('Distribution', 'Box Plot'))
-            
-            fig_dist.add_trace(
-                go.Histogram(x=df['Base_Value'], nbinsx=20,
-                            marker_color=analyzer.config['color']),
-                row=1, col=1
-            )
-            
-            fig_dist.add_trace(
-                go.Box(y=df['Base_Value'], name='Box Plot',
-                      marker_color=analyzer.config['color'],
-                      boxmean=True),
-                row=2, col=1
-            )
-            
-            fig_dist.update_layout(template='plotly_dark', height=500)
+            fig_dist = create_distribution_chart(df, analyzer, "distribution")
             st.plotly_chart(fig_dist, use_container_width=True, key="plot_distribution")
         
         df['Century'] = (df['Earth_Year'] // 100) * 100
