@@ -9,6 +9,7 @@ warnings.filterwarnings('ignore')
 from datetime import datetime
 import base64
 from io import BytesIO
+import hashlib
 
 # Configuration de la page
 st.set_page_config(
@@ -545,8 +546,10 @@ class JupiterDataAnalyzer:
         
         self.events = events
 
-def create_plotly_visualizations(df, analyzer):
-    """Crée des visualisations Plotly interactives"""
+# Fonctions de visualisation avec des IDs uniques
+@st.cache_data
+def create_plotly_visualizations(df, analyzer, chart_id):
+    """Crée des visualisations Plotly interactives avec ID unique"""
     
     fig_main = make_subplots(
         rows=3, cols=2,
@@ -639,11 +642,11 @@ def create_plotly_visualizations(df, analyzer):
     )
     
     fig_main.update_layout(
-        height=1200,
+        height=900,
         showlegend=True,
         template='plotly_dark',
         title_text=f"♃ Analyse Interactive des Données Joviennes - {analyzer.config['description']}",
-        title_font_size=20,
+        title_font_size=18,
         title_font_color='#D8CA9D',
         hovermode='x unified',
         legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
@@ -663,19 +666,20 @@ def create_plotly_visualizations(df, analyzer):
     
     return fig_main
 
-def create_jupiter_atmosphere_visualization(df, analyzer):
-    """Crée une visualisation de l'atmosphère de Jupiter"""
+@st.cache_data
+def create_jupiter_atmosphere_visualization(df, analyzer, chart_id):
+    """Crée une visualisation de l'atmosphère de Jupiter avec ID unique"""
     
     # Couches atmosphériques
     layers = ['Haute atmosphère', 'Nuages d\'ammoniac', 'Nuages d\'hydrosulfure', 'Nuages d\'eau', 'Profondeur']
-    altitudes = [100, 70, 50, 30, 0]  # km au-dessus de la surface (arbitraire)
+    altitudes = [100, 70, 50, 30, 0]  # km
     
     if analyzer.data_type == "atmospheric_temperature":
-        values = [-120, -100, -50, 0, 20000]  # Température par couche
+        values = [-120, -100, -50, 0, 20000]
     elif analyzer.data_type == "wind_speeds":
-        values = [400, 300, 200, 100, 0]  # Vents par couche
+        values = [400, 300, 200, 100, 0]
     else:
-        values = [100, 80, 60, 40, 20]  # Valeurs génériques
+        values = [100, 80, 60, 40, 20]
     
     fig_atmo = go.Figure()
     
@@ -688,7 +692,6 @@ def create_jupiter_atmosphere_visualization(df, analyzer):
         marker=dict(size=10, color='#FFD700')
     ))
     
-    # Annotations pour les couches
     for i, (layer, alt) in enumerate(zip(layers, altitudes)):
         fig_atmo.add_annotation(x=values[i] + 50, y=alt, text=layer, 
                                showarrow=True, arrowhead=1, ax=-30, ay=0,
@@ -704,10 +707,10 @@ def create_jupiter_atmosphere_visualization(df, analyzer):
     
     return fig_atmo
 
-def create_moon_orbits_visualization():
-    """Crée une visualisation des orbites des lunes galiléennes"""
+@st.cache_data
+def create_moon_orbits_visualization(chart_id):
+    """Crée une visualisation des orbites des lunes galiléennes avec ID unique"""
     
-    # Paramètres orbitaux simplifiés
     moons = ['Io', 'Europa', 'Ganymède', 'Callisto']
     colors = ['#FF4500', '#1E90FF', '#32CD32', '#FFD700']
     radii = [421800, 671100, 1070400, 1882700]  # km
@@ -716,7 +719,6 @@ def create_moon_orbits_visualization():
     fig_moons = go.Figure()
     
     for i, (moon, color, radius) in enumerate(zip(moons, colors, radii)):
-        # Orbite circulaire
         theta = np.linspace(0, 2*np.pi, 100)
         x = radius * np.cos(theta)
         y = radius * np.sin(theta)
@@ -729,7 +731,6 @@ def create_moon_orbits_visualization():
             showlegend=True
         ))
         
-        # Position de la lune (simulée)
         angle = 2 * np.pi * (datetime.now().timestamp() / (periods[i] * 86400))
         fig_moons.add_trace(go.Scatter(
             x=[radius * np.cos(angle)],
@@ -740,7 +741,6 @@ def create_moon_orbits_visualization():
             hovertext=moon
         ))
     
-    # Jupiter au centre
     fig_moons.add_trace(go.Scatter(
         x=[0], y=[0],
         mode='markers',
@@ -762,8 +762,9 @@ def create_moon_orbits_visualization():
     
     return fig_moons
 
-def create_mission_timeline(events):
-    """Crée une timeline des missions joviennes"""
+@st.cache_data
+def create_mission_timeline(events, chart_id):
+    """Crée une timeline des missions joviennes avec ID unique"""
     if not events:
         return None
     
@@ -813,6 +814,52 @@ def create_mission_timeline(events):
     
     return fig_timeline
 
+@st.cache_data
+def create_gtr_evolution_chart(df, chart_id):
+    """Crée un graphique d'évolution de la Grande Tache Rouge avec ID unique"""
+    
+    fig_gtr = go.Figure()
+    
+    fig_gtr.add_trace(go.Scatter(
+        x=df['Earth_Year'],
+        y=df['Great_Red_Spot_Evolution'] * 16000,
+        mode='lines',
+        name='Diamètre',
+        line=dict(color='#FF4500', width=3),
+        fill='tozeroy'
+    ))
+    
+    fig_gtr.update_layout(
+        template='plotly_dark',
+        xaxis_title="Année Terrestre",
+        yaxis_title="Diamètre (km)",
+        height=400
+    )
+    
+    return fig_gtr
+
+@st.cache_data
+def create_moon_influence_chart(df, chart_id):
+    """Crée un graphique d'influence des lunes avec ID unique"""
+    
+    fig_moon_influence = go.Figure()
+    fig_moon_influence.add_trace(go.Scatter(
+        x=df['Earth_Year'],
+        y=df['Moon_Influences'],
+        mode='lines',
+        name='Influence combinée',
+        line=dict(color='#DA70D6', width=2)
+    ))
+    
+    fig_moon_influence.update_layout(
+        template='plotly_dark',
+        xaxis_title="Année Terrestre",
+        yaxis_title="Influence relative",
+        height=300
+    )
+    
+    return fig_moon_influence
+
 def get_storm_class(intensity):
     """Retourne la classe CSS pour l'intensité des tempêtes"""
     if intensity < 150:
@@ -845,25 +892,29 @@ def main():
         selected_type = st.selectbox(
             "Type de données joviennes",
             options=list(jupiter_data_types.keys()),
-            format_func=lambda x: jupiter_data_types[x]
+            format_func=lambda x: jupiter_data_types[x],
+            key="data_type_selector"
         )
         
         col1, col2 = st.columns(2)
         with col1:
-            start_year = st.number_input("Début", min_value=1600, max_value=2000, value=1610)
+            start_year = st.number_input("Début", min_value=1600, max_value=2000, value=1610, key="start_year")
         with col2:
-            end_year = st.number_input("Fin", min_value=1611, max_value=2030, value=2025)
+            end_year = st.number_input("Fin", min_value=1611, max_value=2030, value=2025, key="end_year")
         
-        show_missions = st.checkbox("Afficher les missions", value=True)
-        show_moons = st.checkbox("Afficher les lunes", value=True)
+        show_missions = st.checkbox("Afficher les missions", value=True, key="show_missions")
+        show_moons = st.checkbox("Afficher les lunes", value=True, key="show_moons")
         
         viz_mode = st.radio(
             "Mode de visualisation",
-            ["Standard", "Atmosphère", "Système lunaire"]
+            ["Standard", "Atmosphère", "Système lunaire"],
+            key="viz_mode"
         )
         
-        if st.button("♃ Générer l'analyse", use_container_width=True):
+        if st.button("♃ Générer l'analyse", use_container_width=True, key="generate_button"):
             st.session_state['generate'] = True
+            # Clear cache when generating new data
+            st.cache_data.clear()
         
         st.markdown("---")
         st.markdown("### 👑 Faits royaux")
@@ -878,20 +929,31 @@ def main():
         </div>
         """, unsafe_allow_html=True)
     
-    global analyzer
+    # Initialisation de l'analyseur
     analyzer = JupiterDataAnalyzer(selected_type)
     analyzer.start_year = start_year
     analyzer.end_year = end_year
     
-    if 'generate' in st.session_state or 'df' not in st.session_state:
+    # Génération des données avec cache
+    @st.cache_data
+    def load_data(analyzer, start_year, end_year, selected_type):
+        analyzer.start_year = start_year
+        analyzer.end_year = end_year
+        return analyzer.generate_jupiter_data()
+    
+    if 'generate' in st.session_state and st.session_state['generate']:
         with st.spinner("♃ Génération des données joviennes en cours..."):
-            df = analyzer.generate_jupiter_data()
+            df = load_data(analyzer, start_year, end_year, selected_type)
             st.session_state['df'] = df
-            st.session_state['analyzer'] = analyzer
+            st.session_state['generate'] = False
+    elif 'df' not in st.session_state:
+        with st.spinner("♃ Chargement des données joviennes..."):
+            df = load_data(analyzer, start_year, end_year, selected_type)
+            st.session_state['df'] = df
     else:
         df = st.session_state['df']
-        analyzer = st.session_state['analyzer']
     
+    # Métriques principales avec IDs uniques
     col1, col2, col3, col4 = st.columns(4)
     
     with col1:
@@ -935,6 +997,7 @@ def main():
         </div>
         """, unsafe_allow_html=True)
     
+    # Tabs avec clés uniques
     tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
         "📈 Analyse Principale", "🌪️ Atmosphère", "🌕 Lunes", 
         "🚀 Missions", "📊 Statistiques", "🔮 Projections"
@@ -949,22 +1012,26 @@ def main():
                 "Période d'affichage",
                 min_value=int(df['Earth_Year'].min()),
                 max_value=int(df['Earth_Year'].max()),
-                value=(1900, 2025)
+                value=(1900, 2025),
+                key="year_range_slider"
             )
         
         df_filtered = df[(df['Earth_Year'] >= year_range[0]) & (df['Earth_Year'] <= year_range[1])]
         
-        if viz_mode == "Standard":
-            fig_main = create_plotly_visualizations(df_filtered, analyzer)
-            st.plotly_chart(fig_main, use_container_width=True)
-        elif viz_mode == "Atmosphère":
-            fig_atmo = create_jupiter_atmosphere_visualization(df_filtered, analyzer)
-            st.plotly_chart(fig_atmo, use_container_width=True)
-        else:
-            fig_moons = create_moon_orbits_visualization()
-            st.plotly_chart(fig_moons, use_container_width=True)
+        # Générer un ID unique basé sur les paramètres
+        chart_id = f"main_{selected_type}_{year_range[0]}_{year_range[1]}_{viz_mode}"
         
-        with st.expander("ℹ️ À propos de Jupiter"):
+        if viz_mode == "Standard":
+            fig_main = create_plotly_visualizations(df_filtered, analyzer, chart_id)
+            st.plotly_chart(fig_main, use_container_width=True, key=f"plot_main_{chart_id}")
+        elif viz_mode == "Atmosphère":
+            fig_atmo = create_jupiter_atmosphere_visualization(df_filtered, analyzer, chart_id)
+            st.plotly_chart(fig_atmo, use_container_width=True, key=f"plot_atmo_{chart_id}")
+        else:
+            fig_moons = create_moon_orbits_visualization(chart_id)
+            st.plotly_chart(fig_moons, use_container_width=True, key=f"plot_moons_{chart_id}")
+        
+        with st.expander("ℹ️ À propos de Jupiter", expanded=False):
             st.markdown(f"""
             <div class="info-box">
                 <h4>{analyzer.config['description']}</h4>
@@ -985,8 +1052,8 @@ def main():
         
         with col1:
             st.markdown("### Structure atmosphérique")
-            fig_atmo = create_jupiter_atmosphere_visualization(df, analyzer)
-            st.plotly_chart(fig_atmo, use_container_width=True)
+            fig_atmo = create_jupiter_atmosphere_visualization(df, analyzer, f"atmo_{selected_type}")
+            st.plotly_chart(fig_atmo, use_container_width=True, key="plot_atmo_detail")
         
         with col2:
             st.markdown("### Caractéristiques")
@@ -1018,25 +1085,8 @@ def main():
         # Évolution de la GTR
         st.markdown("### 📈 Évolution de la Grande Tache Rouge")
         
-        fig_gtr = go.Figure()
-        
-        fig_gtr.add_trace(go.Scatter(
-            x=df['Earth_Year'],
-            y=df['Great_Red_Spot_Evolution'] * 16000,
-            mode='lines',
-            name='Diamètre',
-            line=dict(color='#FF4500', width=3),
-            fill='tozeroy'
-        ))
-        
-        fig_gtr.update_layout(
-            template='plotly_dark',
-            xaxis_title="Année Terrestre",
-            yaxis_title="Diamètre (km)",
-            height=400
-        )
-        
-        st.plotly_chart(fig_gtr, use_container_width=True)
+        fig_gtr = create_gtr_evolution_chart(df, "gtr_evolution")
+        st.plotly_chart(fig_gtr, use_container_width=True, key="plot_gtr")
     
     with tab3:
         st.markdown("## 🌕 Système Lunaire")
@@ -1045,8 +1095,8 @@ def main():
         
         with col1:
             st.markdown("### Orbites des lunes galiléennes")
-            fig_moons = create_moon_orbits_visualization()
-            st.plotly_chart(fig_moons, use_container_width=True)
+            fig_moons = create_moon_orbits_visualization("moons_orbit")
+            st.plotly_chart(fig_moons, use_container_width=True, key="plot_moons_detail")
         
         with col2:
             st.markdown("### Caractéristiques des lunes")
@@ -1096,31 +1146,16 @@ def main():
         # Influence des lunes
         st.markdown("### 📊 Influence gravitationnelle")
         
-        fig_moon_influence = go.Figure()
-        fig_moon_influence.add_trace(go.Scatter(
-            x=df['Earth_Year'],
-            y=df['Moon_Influences'],
-            mode='lines',
-            name='Influence combinée',
-            line=dict(color='#DA70D6', width=2)
-        ))
-        
-        fig_moon_influence.update_layout(
-            template='plotly_dark',
-            xaxis_title="Année Terrestre",
-            yaxis_title="Influence relative",
-            height=300
-        )
-        
-        st.plotly_chart(fig_moon_influence, use_container_width=True)
+        fig_moon_influence = create_moon_influence_chart(df, "moon_influence")
+        st.plotly_chart(fig_moon_influence, use_container_width=True, key="plot_moon_influence")
     
     with tab4:
         st.markdown("## 🚀 Exploration Jovienne")
         
         if hasattr(analyzer, 'events') and analyzer.events:
-            fig_timeline = create_mission_timeline(analyzer.events)
+            fig_timeline = create_mission_timeline(analyzer.events, "mission_timeline")
             if fig_timeline:
-                st.plotly_chart(fig_timeline, use_container_width=True)
+                st.plotly_chart(fig_timeline, use_container_width=True, key="plot_timeline")
             
             col1, col2, col3 = st.columns(3)
             
@@ -1137,7 +1172,7 @@ def main():
                     marker_colors=['#FFD700', '#B8A86D', '#1E90FF', '#32CD32', '#FFA07A']
                 )])
                 fig_pie.update_layout(template='plotly_dark', height=300)
-                st.plotly_chart(fig_pie, use_container_width=True)
+                st.plotly_chart(fig_pie, use_container_width=True, key="plot_pie_missions")
             
             with col2:
                 st.markdown("### Missions clés")
@@ -1199,7 +1234,7 @@ def main():
             )
             
             fig_dist.update_layout(template='plotly_dark', height=500)
-            st.plotly_chart(fig_dist, use_container_width=True)
+            st.plotly_chart(fig_dist, use_container_width=True, key="plot_distribution")
         
         df['Century'] = (df['Earth_Year'] // 100) * 100
         century_stats = df.groupby('Century').agg({
@@ -1274,6 +1309,7 @@ def main():
         </div>
         """, unsafe_allow_html=True)
     
+    # Footer avec téléchargement
     st.markdown("---")
     col1, col2, col3, col4 = st.columns(4)
     
